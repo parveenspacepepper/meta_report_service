@@ -386,6 +386,14 @@ def send_email(report_file):
 
 app = Flask(__name__)
 
+@app.route('/')
+def index():
+    return jsonify({
+        'status': 'running',
+        'service': 'meta-report-service',
+        'environment': ENV
+    })
+
 @app.route('/generate-report', methods=['GET'])
 def generate_report():
     try:
@@ -414,7 +422,8 @@ def health_check():
     return jsonify({'status': 'healthy'}), 200
 
 if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 10000))
     if ENV == 'production':
-        app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
+        app.run(host='0.0.0.0', port=port)
     else:
-        app.run(debug=True)
+        app.run(debug=True, port=port)
