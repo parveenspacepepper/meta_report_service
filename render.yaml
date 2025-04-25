@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: meta-report-service
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python your_script_name.py
+    envVars:
+      - key: META_API_KEY
+        sync: false
+      - key: META_AD_ACCOUNT_ID
+        sync: false
+      - key: EMAIL_SENDER
+        sync: false
+      - key: EMAIL_RECIPIENTS
+        sync: false
+      - key: EMAIL_PASSWORD
+        sync: false

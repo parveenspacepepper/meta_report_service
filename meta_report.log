@@ -1,0 +1,45 @@
+2025-04-25 13:10:34,750 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-04-25 13:10:34,750 - INFO - [33mPress CTRL+C to quit[0m
+2025-04-25 13:10:34,753 - INFO -  * Restarting with stat
+2025-04-25 13:10:35,892 - WARNING -  * Debugger is active!
+2025-04-25 13:10:35,912 - INFO -  * Debugger PIN: 949-253-596
+2025-04-25 13:12:59,681 - INFO -  * Detected change in 'c:\\D Volume\\SpacePeppers\\report_automation\\app.py', reloading
+2025-04-25 13:13:00,514 - INFO -  * Restarting with stat
+2025-04-25 13:13:03,547 - WARNING -  * Debugger is active!
+2025-04-25 13:13:04,105 - INFO -  * Debugger PIN: 949-253-596
+2025-04-25 13:13:08,147 - INFO -  * Detected change in 'c:\\D Volume\\SpacePeppers\\report_automation\\app.py', reloading
+2025-04-25 13:13:08,517 - INFO -  * Restarting with stat
+2025-04-25 13:13:09,709 - WARNING -  * Debugger is active!
+2025-04-25 13:13:09,714 - INFO -  * Debugger PIN: 949-253-596
+2025-04-25 13:13:12,741 - INFO -  * Detected change in 'c:\\D Volume\\SpacePeppers\\report_automation\\app.py', reloading
+2025-04-25 13:13:12,843 - INFO -  * Restarting with stat
+2025-04-25 13:13:13,686 - WARNING -  * Debugger is active!
+2025-04-25 13:13:13,689 - INFO -  * Debugger PIN: 949-253-596
+2025-04-25 13:13:24,739 - INFO -  * Detected change in 'c:\\D Volume\\SpacePeppers\\report_automation\\app.py', reloading
+2025-04-25 13:13:24,842 - INFO -  * Restarting with stat
+2025-04-25 13:13:25,725 - WARNING -  * Debugger is active!
+2025-04-25 13:13:25,727 - INFO -  * Debugger PIN: 949-253-596
+2025-04-25 13:13:28,751 - INFO -  * Detected change in 'c:\\D Volume\\SpacePeppers\\report_automation\\app.py', reloading
+2025-04-25 13:13:28,850 - INFO -  * Restarting with stat
+2025-04-25 13:13:29,803 - WARNING -  * Debugger is active!
+2025-04-25 13:13:29,806 - INFO -  * Debugger PIN: 949-253-596
+2025-04-25 13:13:42,869 - INFO -  * Detected change in 'c:\\D Volume\\SpacePeppers\\report_automation\\app.py', reloading
+2025-04-25 13:13:42,997 - INFO -  * Restarting with stat
+2025-04-25 13:13:43,882 - WARNING -  * Debugger is active!
+2025-04-25 13:13:43,885 - INFO -  * Debugger PIN: 949-253-596
+2025-04-25 13:13:48,327 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-04-25 13:13:48,328 - INFO - [33mPress CTRL+C to quit[0m
+2025-04-25 13:13:48,329 - INFO -  * Restarting with stat
+2025-04-25 13:13:49,185 - WARNING -  * Debugger is active!
+2025-04-25 13:13:49,190 - INFO -  * Debugger PIN: 949-253-596
+2025-04-25 13:15:29,559 - INFO -  * Detected change in 'c:\\D Volume\\SpacePeppers\\report_automation\\app.py', reloading
+2025-04-25 13:15:30,690 - INFO -  * Restarting with stat
+2025-04-25 13:15:33,911 - INFO - PDF report saved to: c:\D Volume\SpacePeppers\report_automation\report_2025-04-25.pdf
+2025-04-25 13:15:39,174 - INFO - PDF report saved to: c:\D Volume\SpacePeppers\report_automation\report_2025-04-25.pdf
+2025-04-25 13:15:42,893 - INFO - Email sent successfully
+2025-04-25 13:15:42,893 - INFO - Report generation and email sending completed successfully
+2025-04-25 13:16:26,468 - INFO - PDF report saved to: c:\D Volume\SpacePeppers\report_automation\report_2025-04-25.pdf
+2025-04-25 13:16:30,237 - INFO - Email sent successfully
+2025-04-25 13:16:30,238 - INFO - Report generation and email sending completed successfully
