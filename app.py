@@ -12,6 +12,7 @@ from email.mime.application import MIMEApplication
 import logging
 from flask import Flask, jsonify
 import traceback
+import pytz
 
 # Set up logging
 logging.basicConfig(
@@ -28,6 +29,9 @@ EMAIL_RECIPIENTS = os.getenv('EMAIL_RECIPIENTS', 'parveen@tervigon.com').split('
 EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
 ENV = os.getenv('ENV', 'development')
 
+# Set timezone to IST
+IST = pytz.timezone('Asia/Kolkata')
+
 # Check if required environment variables are set
 if not ACCESS_TOKEN or not ACCOUNT_ID:
     logging.error("Required environment variables are missing. Please check your .env file.")
@@ -35,7 +39,7 @@ if not ACCESS_TOKEN or not ACCOUNT_ID:
 
 # API endpoint and date
 BASE_URL = f'https://graph.facebook.com/v20.0/act_{ACCOUNT_ID}/insights'
-YESTERDAY = (datetime.now()).strftime('%Y-%m-%d')
+YESTERDAY = (datetime.now(IST)).strftime('%Y-%m-%d')
 
 # Define report directory
 REPORT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -152,10 +156,11 @@ def generate_pdf_report(metrics):
     # Starting Y position with top margin
     y = height - margin
 
-    # Title
-    date_part = datetime.now().strftime("%Y-%m-%d")
-    time_part = datetime.now().strftime("%I %p").lstrip("0")  # e.g., "11 AM" instead of "011 AM"
-    timestamp = f"{date_part} / {time_part}"
+    # Title with IST timestamp
+    current_time = datetime.now(IST)
+    date_part = current_time.strftime("%Y-%m-%d")
+    time_part = current_time.strftime("%I:%M %p").lstrip("0")  # e.g., "11:30 AM" instead of "011:30 AM"
+    timestamp = f"{date_part} / {time_part} IST"
     
     c.setFont("Helvetica-Bold", 16)
     c.drawString(margin, y, f"Daily Marketing Performance Report ({timestamp})")
@@ -360,9 +365,9 @@ def send_email(report_file):
     msg = MIMEMultipart()
     msg['From'] = EMAIL_SENDER
     msg['To'] = ", ".join(EMAIL_RECIPIENTS)
-    msg['Subject'] = f"Daily Marketing Report - {YESTERDAY}"
+    msg['Subject'] = f"Daily Marketing Report - {YESTERDAY} (IST)"
     
-    body = f"Attached is the daily marketing performance report for {YESTERDAY}."
+    body = f"Attached is the daily marketing performance report for {YESTERDAY} (IST)."
     msg.attach(MIMEText(body, 'plain'))
     
     try:
