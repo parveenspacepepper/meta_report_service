@@ -33,13 +33,13 @@ ENV = os.getenv('ENV', 'development')
 IST = pytz.timezone('Asia/Kolkata')
 
 # Check if required environment variables are set
-if not ACCESS_TOKEN or not ACCOUNT_ID:
+if not ACCESS_TOKEN or not ACCOUNT_ID or not EMAIL_PASSWORD:
     logging.error("Required environment variables are missing. Please check your .env file.")
     raise ValueError("Required environment variables are missing")
 
 # API endpoint and date
 BASE_URL = f'https://graph.facebook.com/v20.0/act_{ACCOUNT_ID}/insights'
-YESTERDAY = (datetime.now(IST)).strftime('%Y-%m-%d')
+YESTERDAY = (datetime.now(IST) - timedelta(days=1)).strftime('%Y-%m-%d')
 
 # Define report directory
 REPORT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -55,7 +55,10 @@ def fetch_meta_data():
     try:
         response = requests.get(BASE_URL, params=params)
         response.raise_for_status()
-        return response.json().get('data', [])
+        data = response.json().get('data', [])
+        if not data:
+            logging.warning("No data returned from Meta API")
+        return data
     except requests.exceptions.RequestException as e:
         logging.error(f"API request failed: {str(e)}")
         raise Exception(f"API request failed: {str(e)}")
@@ -67,11 +70,12 @@ def process_data(raw_data):
             'total_sales': 0,
             'total_ad_spend': 0,
             'overall_roas': 0,
-            'overall_cpa': 0,
+            'overall_cpp': 0,
             'overall_ctr': 0,
             'overall_conversion_rate': 0,
             'total_impressions': 0,
             'total_clicks': 0,
+            'total_conversions': 0,  # Added for clarity
             'campaign_summary': pd.DataFrame(),
             'high_roas_campaigns': pd.DataFrame(),
             'active_campaigns': pd.DataFrame()
@@ -85,14 +89,19 @@ def process_data(raw_data):
     df['clicks'] = pd.to_numeric(df['clicks'], errors='coerce').fillna(0).astype(int)
     
     # Extract conversions and sales
-    df['conversions'] = df['actions'].apply(
-        lambda x: next((float(item['value']) for item in x if item['action_type'] == 'purchase'), 0)
-        if isinstance(x, list) else 0
-    ).astype(int)
-    df['sales'] = df['action_values'].apply(
-        lambda x: next((float(item['value']) for item in x if item['action_type'] == 'purchase'), 0)
-        if isinstance(x, list) else 0
-    ).astype(float)
+    def get_purchase_value(actions, key='value', action_type='purchase'):
+        if isinstance(actions, list):
+            for item in actions:
+                if item.get('action_type') == action_type:
+                    try:
+                        return float(item.get(key, 0))
+                    except (ValueError, TypeError):
+                        logging.warning(f"Invalid {key} for {action_type}: {item.get(key)}")
+                        return 0
+        return 0
+
+    df['conversions'] = df['actions'].apply(lambda x: get_purchase_value(x, 'value', 'purchase')).astype(int)
+    df['sales'] = df['action_values'].apply(lambda x: get_purchase_value(x, 'value', 'purchase')).astype(float)
     
     # Calculate totals
     total_ad_spend = df['spend'].sum()
@@ -103,7 +112,7 @@ def process_data(raw_data):
     
     # Calculate overall KPIs with safe division
     overall_roas = total_sales / total_ad_spend if total_ad_spend > 0 else 0
-    overall_cpa = total_ad_spend / total_conversions if total_conversions > 0 else 0
+    overall_cpp = total_ad_spend / total_conversions if total_conversions > 0 else 0
     overall_ctr = (total_clicks / total_impressions) * 100 if total_impressions > 0 else 0
     overall_conversion_rate = (total_conversions / total_clicks) * 100 if total_clicks > 0 else 0
     
@@ -118,7 +127,7 @@ def process_data(raw_data):
     
     # Calculate campaign metrics with safe division
     campaign_summary['roas'] = (campaign_summary['sales'] / campaign_summary['spend']).replace([float('inf'), -float('inf')], 0).fillna(0)
-    campaign_summary['cpa'] = (campaign_summary['spend'] / campaign_summary['conversions']).replace([float('inf'), -float('inf')], 0).fillna(0)
+    campaign_summary['cpp'] = (campaign_summary['spend'] / campaign_summary['conversions']).replace([float('inf'), -float('inf')], 0).fillna(0)
     campaign_summary['ctr'] = ((campaign_summary['clicks'] / campaign_summary['impressions']) * 100).replace([float('inf'), -float('inf')], 0).fillna(0)
     campaign_summary['conversion_rate'] = ((campaign_summary['conversions'] / campaign_summary['clicks']) * 100).replace([float('inf'), -float('inf')], 0).fillna(0)
     
@@ -134,11 +143,12 @@ def process_data(raw_data):
         'total_sales': total_sales,
         'total_ad_spend': total_ad_spend,
         'overall_roas': overall_roas,
-        'overall_cpa': overall_cpa,
+        'overall_cpp': overall_cpp,
         'overall_ctr': overall_ctr,
         'overall_conversion_rate': overall_conversion_rate,
         'total_impressions': total_impressions,
         'total_clicks': total_clicks,
+        'total_conversions': total_conversions,
         'campaign_summary': campaign_summary,
         'high_roas_campaigns': high_roas_campaigns,
         'active_campaigns': active_campaigns
@@ -149,17 +159,17 @@ def generate_pdf_report(metrics):
     c = canvas.Canvas(report_name, pagesize=letter)
     width, height = letter
     
-    # Define margins (50 points on all sides)
+    # Define margins
     margin = 50
-    table_width = width - 2 * margin  # Usable width for tables
+    table_width = width - 2 * margin
     
-    # Starting Y position with top margin
+    # Starting Y position
     y = height - margin
 
     # Title with IST timestamp
     current_time = datetime.now(IST)
     date_part = current_time.strftime("%Y-%m-%d")
-    time_part = current_time.strftime("%I:%M %p").lstrip("0")  # e.g., "11:30 AM" instead of "011:30 AM"
+    time_part = current_time.strftime("%I:%M %p").lstrip("0")
     timestamp = f"{date_part} / {time_part} IST"
     
     c.setFont("Helvetica-Bold", 16)
@@ -171,31 +181,31 @@ def generate_pdf_report(metrics):
     c.drawString(margin, y, "Summary Metrics")
     y -= 30
     
-    # Draw table for summary metrics
     headers = ["Metric", "Value"]
-    col_widths = [200, 200]  # Adjusted widths for summary table
+    col_widths = [200, 200]
     x_positions = [margin, margin + col_widths[0]]
     
-    # Header row with background
-    c.setFillColorRGB(0.9, 0.9, 0.9)  # Light gray background
+    # Header row
+    c.setFillColorRGB(0.9, 0.9, 0.9)
     c.rect(margin, y - 5, sum(col_widths), 20, fill=True, stroke=False)
-    c.setFillColorRGB(0, 0, 0)  # Reset to black for text
+    c.setFillColorRGB(0, 0, 0)
     c.setFont("Helvetica-Bold", 12)
     for i, header in enumerate(headers):
-        c.drawString(x_positions[i] + 5, y, header)  # 5 points padding
+        c.drawString(x_positions[i] + 5, y, header)
     y -= 20
     
-    # Draw table rows with borders
+    # Summary metrics
     summary_metrics = [
         ("Date", YESTERDAY),
         ("Total Sales", f"Rs {metrics['total_sales']:.2f}"),
         ("Total Ad Spend", f"Rs {metrics['total_ad_spend']:.2f}"),
         ("Overall ROAS", f"{metrics['overall_roas']:.2f}"),
-        ("Overall CPA", f"Rs {metrics['overall_cpa']:.2f}"),
+        ("Overall CPP", f"Rs {metrics['overall_cpp']:.2f}"),
         ("Overall CTR", f"{metrics['overall_ctr']:.2f}%"),
         ("Overall Conversion Rate", f"{metrics['overall_conversion_rate']:.2f}%"),
         ("Total Impressions", str(metrics['total_impressions'])),
         ("Total Clicks", str(metrics['total_clicks'])),
+        ("Total Conversions", str(metrics['total_conversions'])),  # Added
     ]
     c.setFont("Helvetica", 12)
     for metric, value in summary_metrics:
@@ -211,11 +221,8 @@ def generate_pdf_report(metrics):
             y -= 20
             c.setFont("Helvetica", 12)
         
-        # Draw cell borders
         c.rect(margin, y - 5, col_widths[0], 20, stroke=True, fill=False)
         c.rect(margin + col_widths[0], y - 5, col_widths[1], 20, stroke=True, fill=False)
-        
-        # Draw text with padding
         c.drawString(x_positions[0] + 5, y, metric)
         c.drawString(x_positions[1] + 5, y, value)
         y -= 20
@@ -227,13 +234,13 @@ def generate_pdf_report(metrics):
     y -= 30
     
     if not metrics['high_roas_campaigns'].empty:
-        headers = ["Campaign Name", "Spend", "Sales", "ROAS", "CPA", "CTR", "CR"]
-        col_widths = [150, 80, 80, 40, 80, 40, 40]  # Adjusted for longer campaign names
+        headers = ["Campaign Name", "Spend", "Sales", "ROAS", "CPP", "CTR", "CR"]
+        col_widths = [150, 80, 80, 40, 80, 40, 40]
         x_positions = [margin]
         for i in range(len(col_widths) - 1):
             x_positions.append(x_positions[i] + col_widths[i])
         
-        # Header row with background
+        # Header row
         c.setFillColorRGB(0.9, 0.9, 0.9)
         c.rect(margin, y - 5, sum(col_widths), 20, fill=True, stroke=False)
         c.setFillColorRGB(0, 0, 0)
@@ -242,7 +249,6 @@ def generate_pdf_report(metrics):
             c.drawString(x_positions[i] + 5, y, header)
         y -= 20
         
-        # Draw table rows with borders
         c.setFont("Helvetica", 12)
         for _, row in metrics['high_roas_campaigns'].iterrows():
             if y < margin:
@@ -257,17 +263,15 @@ def generate_pdf_report(metrics):
                 y -= 20
                 c.setFont("Helvetica", 12)
             
-            # Draw cell borders
             for i in range(len(col_widths)):
                 c.rect(x_positions[i], y - 5, col_widths[i], 20, stroke=True, fill=False)
             
-            # Draw text with padding
             campaign_name = row['campaign_name'][:25] + '...' if len(row['campaign_name']) > 25 else row['campaign_name']
             c.drawString(x_positions[0] + 5, y, campaign_name)
             c.drawString(x_positions[1] + 5, y, f"Rs {row['spend']:.2f}")
             c.drawString(x_positions[2] + 5, y, f"Rs {row['sales']:.2f}")
             c.drawString(x_positions[3] + 5, y, f"{row['roas']:.2f}")
-            c.drawString(x_positions[4] + 5, y, f"Rs {row['cpa']:.2f}")
+            c.drawString(x_positions[4] + 5, y, f"Rs {row['cpp']:.2f}")
             c.drawString(x_positions[5] + 5, y, f"{row['ctr']:.2f}%")
             c.drawString(x_positions[6] + 5, y, f"{row['conversion_rate']:.2f}%")
             y -= 20
@@ -283,13 +287,13 @@ def generate_pdf_report(metrics):
     y -= 30
     
     if not metrics['active_campaigns'].empty:
-        headers = ["Campaign Name", "Spend", "Sales", "ROAS", "CPA", "CTR", "CR"]
-        col_widths = [150, 80, 80, 40, 80, 40, 40]  # Same widths as above
+        headers = ["Campaign Name", "Spend", "Sales", "ROAS", "CPP", "CTR", "CR", "Conv"]
+        col_widths = [150, 80, 80, 40, 80, 40, 40, 40]  # Added Conv column
         x_positions = [margin]
         for i in range(len(col_widths) - 1):
             x_positions.append(x_positions[i] + col_widths[i])
         
-        # Header row with background
+        # Header row
         c.setFillColorRGB(0.9, 0.9, 0.9)
         c.rect(margin, y - 5, sum(col_widths), 20, fill=True, stroke=False)
         c.setFillColorRGB(0, 0, 0)
@@ -298,7 +302,6 @@ def generate_pdf_report(metrics):
             c.drawString(x_positions[i] + 5, y, header)
         y -= 20
         
-        # Draw table rows with borders
         c.setFont("Helvetica", 12)
         for _, row in metrics['active_campaigns'].iterrows():
             if y < margin:
@@ -313,38 +316,39 @@ def generate_pdf_report(metrics):
                 y -= 20
                 c.setFont("Helvetica", 12)
             
-            # Draw cell borders
             for i in range(len(col_widths)):
                 c.rect(x_positions[i], y - 5, col_widths[i], 20, stroke=True, fill=False)
             
-            # Draw text with padding
             campaign_name = row['campaign_name'][:25] + '...' if len(row['campaign_name']) > 25 else row['campaign_name']
             c.drawString(x_positions[0] + 5, y, campaign_name)
             c.drawString(x_positions[1] + 5, y, f"Rs {row['spend']:.2f}")
             c.drawString(x_positions[2] + 5, y, f"Rs {row['sales']:.2f}")
             c.drawString(x_positions[3] + 5, y, f"{row['roas']:.2f}")
-            c.drawString(x_positions[4] + 5, y, f"Rs {row['cpa']:.2f}")
+            c.drawString(x_positions[4] + 5, y, f"Rs {row['cpp']:.2f}")
             c.drawString(x_positions[5] + 5, y, f"{row['ctr']:.2f}%")
             c.drawString(x_positions[6] + 5, y, f"{row['conversion_rate']:.2f}%")
+            c.drawString(x_positions[7] + 5, y, str(int(row['conversions'])))
             y -= 20
         
-        # Calculate and display total spend and sales
-        total_spend = metrics['active_campaigns']['spend'].sum()
-        total_sales = metrics['active_campaigns']['sales'].sum()
-        
-        # Summary row with background
+        # Summary row
         if y < margin:
             c.showPage()
             y = height - margin
         
-        c.setFillColorRGB(0.95, 0.95, 0.95)  # Slightly darker gray for summary row
+        total_spend = metrics['active_campaigns']['spend'].sum()
+        total_sales = metrics['active_campaigns']['sales'].sum()
+        total_conversions = metrics['active_campaigns']['conversions'].sum()
+        total_cpp = total_spend / total_conversions if total_conversions > 0 else 0
+        
+        c.setFillColorRGB(0.95, 0.95, 0.95)
         c.rect(margin, y - 5, sum(col_widths), 20, fill=True, stroke=False)
         c.setFillColorRGB(0, 0, 0)
         c.setFont("Helvetica-Bold", 12)
         c.drawString(x_positions[0] + 5, y, "Total")
         c.drawString(x_positions[1] + 5, y, f"Rs {total_spend:.2f}")
         c.drawString(x_positions[2] + 5, y, f"Rs {total_sales:.2f}")
-        # Draw borders for summary row
+        c.drawString(x_positions[4] + 5, y, f"Rs {total_cpp:.2f}")
+        c.drawString(x_positions[7] + 5, y, str(int(total_conversions)))
         for i in range(len(col_widths)):
             c.rect(x_positions[i], y - 5, col_widths[i], 20, stroke=True, fill=False)
         y -= 20
@@ -358,35 +362,29 @@ def generate_pdf_report(metrics):
     return report_name
 
 def send_email(report_file):
-    if not EMAIL_PASSWORD or not EMAIL_SENDER or not EMAIL_RECIPIENTS:
-        logging.error("Email configuration is incomplete. Please check EMAIL_SENDER, EMAIL_RECIPIENTS, and EMAIL_PASSWORD environment variables.")
-        raise ValueError("Email configuration is incomplete")
-
-    msg = MIMEMultipart()
-    msg['From'] = EMAIL_SENDER
-    msg['To'] = ", ".join(EMAIL_RECIPIENTS)
-    msg['Subject'] = f"Daily Marketing Report - {YESTERDAY} (IST)"
-    
-    body = f"Attached is the daily marketing performance report for {YESTERDAY} (IST)."
-    msg.attach(MIMEText(body, 'plain'))
-    
     try:
-        with open(report_file, "rb") as attachment:
-            part = MIMEApplication(attachment.read(), Name=os.path.basename(report_file))
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_SENDER
+        msg['To'] = ", ".join(EMAIL_RECIPIENTS)
+        msg['Subject'] = f"Daily Marketing Report - {YESTERDAY}"
+        
+        body = f"Attached is the daily marketing performance report for {YESTERDAY}."
+        msg.attach(MIMEText(body, 'plain'))
+        
+        with open(report_file, "rb") as f:
+            part = MIMEApplication(f.read(), Name=os.path.basename(report_file))
             part['Content-Disposition'] = f'attachment; filename="{os.path.basename(report_file)}"'
             msg.attach(part)
-    except FileNotFoundError:
-        logging.error(f"Report file not found: {report_file}")
-        raise
-    
-    try:
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+        
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.starttls()
             server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-            server.send_message(msg)
+            server.sendmail(EMAIL_SENDER, EMAIL_RECIPIENTS, msg.as_string())
+        
         logging.info("Email sent successfully")
-    except smtplib.SMTPException as e:
+    except Exception as e:
         logging.error(f"Failed to send email: {str(e)}")
-        raise
+        raise Exception(f"Failed to send email: {str(e)}")
 
 app = Flask(__name__)
 
