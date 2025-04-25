@@ -10,18 +10,23 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 import logging
+from flask import Flask, jsonify
+import traceback
 
 # Set up logging
-logging.basicConfig(filename='meta_report.log', level=logging.INFO, 
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 # Load environment variables
 load_dotenv()
 ACCESS_TOKEN = os.getenv('META_API_KEY')
 ACCOUNT_ID = os.getenv('META_AD_ACCOUNT_ID')
-EMAIL_SENDER = os.getenv('EMAIL_SENDER', 'www.gauravpradhan953@gmail.com')
-EMAIL_RECIPIENTS = os.getenv('EMAIL_RECIPIENTS', 'gaurav.pradhan.7me@gmail.com').split(',')
+EMAIL_SENDER = os.getenv('EMAIL_SENDER')
+EMAIL_RECIPIENTS = os.getenv('EMAIL_RECIPIENTS', '').split(',')
 EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
+ENV = os.getenv('ENV', 'development')
 
 # Check if required environment variables are set
 if not ACCESS_TOKEN or not ACCOUNT_ID:
@@ -32,7 +37,7 @@ if not ACCESS_TOKEN or not ACCOUNT_ID:
 BASE_URL = f'https://graph.facebook.com/v20.0/act_{ACCOUNT_ID}/insights'
 YESTERDAY = (datetime.now()).strftime('%Y-%m-%d')
 
-# Define report directory as the same folder as the script
+# Define report directory
 REPORT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def fetch_meta_data():
@@ -115,7 +120,6 @@ def process_data(raw_data):
     
     # Additional insights
     high_roas_campaigns = campaign_summary[campaign_summary['roas'] > 1]
-  # Inside process_data function, replace the active_campaigns assignment with:
     active_campaigns = campaign_summary[
         (campaign_summary['impressions'] > 0) | 
         (campaign_summary['clicks'] > 0) | 
@@ -148,7 +152,7 @@ def generate_pdf_report(metrics):
     # Starting Y position with top margin
     y = height - margin
 
-  # Title
+    # Title
     date_part = datetime.now().strftime("%Y-%m-%d")
     time_part = datetime.now().strftime("%I %p").lstrip("0")  # e.g., "11 AM" instead of "011 AM"
     timestamp = f"{date_part} / {time_part}"
@@ -156,11 +160,6 @@ def generate_pdf_report(metrics):
     c.setFont("Helvetica-Bold", 16)
     c.drawString(margin, y, f"Daily Marketing Performance Report ({timestamp})")
     y -= 20
-    
-    # # Add timestamp below the title
-    # c.setFont("Helvetica", 12)
-    # c.drawString(margin, y, f"Generated on: {timestamp}")
-    # y -= 20
     
     # Summary Metrics Table
     c.setFont("Helvetica-Bold", 14)
@@ -393,14 +392,29 @@ def generate_report():
         logging.info("Report generation started...")
         data = fetch_meta_data()
         metrics = process_data(data)
-        generate_pdf_report(metrics)
-        send_email( generate_pdf_report(metrics))
+        report_file = generate_pdf_report(metrics)
+        send_email(report_file)
         logging.info("Report generation and email completed successfully.")
-        return jsonify({'status': 'success', 'message': 'Report generated and sent via email.'})
+        return jsonify({
+            'status': 'success',
+            'message': 'Report generated and sent via email.',
+            'report_file': report_file
+        })
     except Exception as e:
         logging.error(f"Error during report generation: {str(e)}")
         traceback_str = traceback.format_exc()
-        return jsonify({'status': 'error', 'message': str(e), 'trace': traceback_str}), 500
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'trace': traceback_str
+        }), 500
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({'status': 'healthy'}), 200
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    if ENV == 'production':
+        app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
+    else:
+        app.run(debug=True)
