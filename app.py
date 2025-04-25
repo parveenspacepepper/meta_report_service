@@ -23,8 +23,8 @@ logging.basicConfig(
 load_dotenv()
 ACCESS_TOKEN = os.getenv('META_API_KEY')
 ACCOUNT_ID = os.getenv('META_AD_ACCOUNT_ID')
-EMAIL_SENDER = os.getenv('EMAIL_SENDER')
-EMAIL_RECIPIENTS = os.getenv('EMAIL_RECIPIENTS', '').split(',')
+EMAIL_SENDER = os.getenv('EMAIL_SENDER', 'www.gauravpradhan953@gmail.com')
+EMAIL_RECIPIENTS = os.getenv('EMAIL_RECIPIENTS', 'parveen@tervigon.com').split(',')
 EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
 ENV = os.getenv('ENV', 'development')
 
@@ -353,10 +353,10 @@ def generate_pdf_report(metrics):
     return report_name
 
 def send_email(report_file):
-    if not EMAIL_PASSWORD:
-        logging.error("Email password not set in environment variables")
-        raise ValueError("Email password not set")
-    
+    if not EMAIL_PASSWORD or not EMAIL_SENDER or not EMAIL_RECIPIENTS:
+        logging.error("Email configuration is incomplete. Please check EMAIL_SENDER, EMAIL_RECIPIENTS, and EMAIL_PASSWORD environment variables.")
+        raise ValueError("Email configuration is incomplete")
+
     msg = MIMEMultipart()
     msg['From'] = EMAIL_SENDER
     msg['To'] = ", ".join(EMAIL_RECIPIENTS)
@@ -375,8 +375,7 @@ def send_email(report_file):
         raise
     
     try:
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
             server.login(EMAIL_SENDER, EMAIL_PASSWORD)
             server.send_message(msg)
         logging.info("Email sent successfully")
