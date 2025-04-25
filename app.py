@@ -24,8 +24,8 @@ logging.basicConfig(
 load_dotenv()
 ACCESS_TOKEN = os.getenv('META_API_KEY')
 ACCOUNT_ID = os.getenv('META_AD_ACCOUNT_ID')
-EMAIL_SENDER = os.getenv('EMAIL_SENDER', 'www.gauravpradhan953@gmail.com')
-EMAIL_RECIPIENTS = os.getenv('EMAIL_RECIPIENTS', 'parveen@tervigon.com').split(',')
+EMAIL_SENDER = os.getenv('EMAIL_SENDER', 'aman@spacepepper.com')
+EMAIL_RECIPIENTS = os.getenv('EMAIL_RECIPIENTS', 'shantanu@tervigon.com, admin@spacepepper.com, smirti@spacepepper.com, aman@spacepeppe.com, nikesh@tervigon.com, ashish@tervigon.com, parveen@tervigon.com').split(',')
 EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
 ENV = os.getenv('ENV', 'development')
 
