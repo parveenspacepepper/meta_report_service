@@ -25,7 +25,7 @@ load_dotenv()
 ACCESS_TOKEN = os.getenv('META_API_KEY')
 ACCOUNT_ID = os.getenv('META_AD_ACCOUNT_ID')
 EMAIL_SENDER = os.getenv('EMAIL_SENDER', 'aman@spacepepper.com')
-EMAIL_RECIPIENTS = os.getenv('EMAIL_RECIPIENTS', 'shantanu@tervigon.com, admin@spacepepper.com, smriti@spacepepper.com, aman@spacepepper.com, nikesh@tervigon.com, ashish@tervigon.com, parveen@tervigon.com').split(',')
+EMAIL_RECIPIENTS = os.getenv('EMAIL_RECIPIENTS', 'shantanu@tervigon.com, admin@spacepepper.com, smriti@spacepepper.com, aman@spacepepper.com, nikesh@tervigon.com, ashish@tervigon.com, parveen@tervigon.com, gaurav.pradhan.7me@gmail.com').split(',')
 EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
 ENV = os.getenv('ENV', 'development')
 
@@ -39,7 +39,7 @@ if not ACCESS_TOKEN or not ACCOUNT_ID or not EMAIL_PASSWORD:
 
 # API endpoint and date
 BASE_URL = f'https://graph.facebook.com/v20.0/act_{ACCOUNT_ID}/insights'
-YESTERDAY = (datetime.now(IST) - timedelta(days=1)).strftime('%Y-%m-%d')
+YESTERDAY = (datetime.now(IST) ).strftime('%Y-%m-%d')
 
 # Define report directory
 REPORT_DIR = os.path.dirname(os.path.abspath(__file__))
