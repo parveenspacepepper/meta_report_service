@@ -160,7 +160,7 @@ def generate_pdf_report(metrics):
     width, height = letter
     
     # Define margins
-    margin = 50
+    margin = 25
     table_width = width - 2 * margin
     
     # Starting Y position
@@ -205,7 +205,7 @@ def generate_pdf_report(metrics):
         ("Overall Conversion Rate", f"{metrics['overall_conversion_rate']:.2f}%"),
         ("Total Impressions", str(metrics['total_impressions'])),
         ("Total Clicks", str(metrics['total_clicks'])),
-        ("Total Conversions", str(metrics['total_conversions'])),  # Added
+        ("Total Conversions", str(metrics['total_conversions'])),
     ]
     c.setFont("Helvetica", 12)
     for metric, value in summary_metrics:
@@ -227,6 +227,36 @@ def generate_pdf_report(metrics):
         c.drawString(x_positions[1] + 5, y, value)
         y -= 20
     
+    # Function to wrap campaign names
+    def draw_wrapped_campaign_name(canvas, name, x, y, width, font_size=10):
+        canvas.setFont("Helvetica", font_size)
+        words = name.split(' ')
+        line = ""
+        y_offset = 0
+        max_lines = 2  # Maximum 2 lines for campaign names
+        line_height = font_size + 1
+        
+        for word in words:
+            test_line = line + " " + word if line else word
+            if canvas.stringWidth(test_line, "Helvetica", font_size) < width - 10:
+                line = test_line
+            else:
+                if y_offset == 0:  # First line
+                    canvas.drawString(x + 5, y - y_offset, line)
+                    line = word
+                    y_offset += line_height
+                else:  # Second line
+                    # Truncate and add ellipsis if needed
+                    remaining = line + " " + word
+                    while canvas.stringWidth(remaining + "...", "Helvetica", font_size) > width - 10 and len(remaining) > 0:
+                        remaining = remaining[:-1]
+                    canvas.drawString(x + 5, y - y_offset, remaining + "..." if len(remaining) < len(line + " " + word) else remaining)
+                    return
+        
+        # Draw last line if any
+        if line:
+            canvas.drawString(x + 5, y - y_offset, line)
+    
     # Campaigns with ROAS > 1 Table
     y -= 30
     c.setFont("Helvetica-Bold", 14)
@@ -235,7 +265,7 @@ def generate_pdf_report(metrics):
     
     if not metrics['high_roas_campaigns'].empty:
         headers = ["Campaign Name", "Spend", "Sales", "ROAS", "CPP", "CTR", "CR"]
-        col_widths = [150, 80, 80, 40, 80, 40, 40]
+        col_widths = [200, 80, 80, 40, 80, 40, 40]
         x_positions = [margin]
         for i in range(len(col_widths) - 1):
             x_positions.append(x_positions[i] + col_widths[i])
@@ -249,32 +279,35 @@ def generate_pdf_report(metrics):
             c.drawString(x_positions[i] + 5, y, header)
         y -= 20
         
-        c.setFont("Helvetica", 12)
         for _, row in metrics['high_roas_campaigns'].iterrows():
-            if y < margin:
+            if y < margin + 25:  # Need more space for wrapped campaign names
                 c.showPage()
                 y = height - margin
                 c.setFillColorRGB(0.9, 0.9, 0.9)
                 c.rect(margin, y - 5, sum(col_widths), 20, fill=True, stroke=False)
                 c.setFillColorRGB(0, 0, 0)
-                c.setFont("Helvetica-Bold", 12)
+                c.setFont("Helvetica-Bold", 10)
                 for i, header in enumerate(headers):
                     c.drawString(x_positions[i] + 5, y, header)
                 y -= 20
-                c.setFont("Helvetica", 12)
+            
+            row_height = 30  # Increased row height for wrapped text
             
             for i in range(len(col_widths)):
-                c.rect(x_positions[i], y - 5, col_widths[i], 20, stroke=True, fill=False)
+                c.rect(x_positions[i], y - row_height + 15, col_widths[i], row_height, stroke=True, fill=False)
             
-            campaign_name = row['campaign_name'][:25] + '...' if len(row['campaign_name']) > 25 else row['campaign_name']
-            c.drawString(x_positions[0] + 5, y, campaign_name)
+            # Draw wrapped campaign name
+            draw_wrapped_campaign_name(c, row['campaign_name'], x_positions[0], y, col_widths[0])
+            
+            # Draw other values
+            c.setFont("Helvetica", 10)
             c.drawString(x_positions[1] + 5, y, f"Rs {row['spend']:.2f}")
             c.drawString(x_positions[2] + 5, y, f"Rs {row['sales']:.2f}")
             c.drawString(x_positions[3] + 5, y, f"{row['roas']:.2f}")
             c.drawString(x_positions[4] + 5, y, f"Rs {row['cpp']:.2f}")
             c.drawString(x_positions[5] + 5, y, f"{row['ctr']:.2f}%")
             c.drawString(x_positions[6] + 5, y, f"{row['conversion_rate']:.2f}%")
-            y -= 20
+            y -= row_height
     else:
         c.setFont("Helvetica", 12)
         c.drawString(margin, y, "No campaigns with ROAS > 1")
@@ -287,8 +320,8 @@ def generate_pdf_report(metrics):
     y -= 30
     
     if not metrics['active_campaigns'].empty:
-        headers = ["Campaign Name", "Spend", "Sales", "ROAS", "CPP", "CTR", "CR", "Conv"]
-        col_widths = [150, 80, 80, 40, 80, 40, 40, 40]  # Added Conv column
+        headers = ["Campaign Name", "Spend", "Sales", "ROAS", "CPP", "CTR", "CR"]
+        col_widths = [200, 80, 80, 40, 80, 40, 40]  # Added Conv column
         x_positions = [margin]
         for i in range(len(col_widths) - 1):
             x_positions.append(x_positions[i] + col_widths[i])
@@ -302,9 +335,8 @@ def generate_pdf_report(metrics):
             c.drawString(x_positions[i] + 5, y, header)
         y -= 20
         
-        c.setFont("Helvetica", 12)
         for _, row in metrics['active_campaigns'].iterrows():
-            if y < margin:
+            if y < margin + 25:  # Need more space for wrapped campaign names
                 c.showPage()
                 y = height - margin
                 c.setFillColorRGB(0.9, 0.9, 0.9)
@@ -314,21 +346,24 @@ def generate_pdf_report(metrics):
                 for i, header in enumerate(headers):
                     c.drawString(x_positions[i] + 5, y, header)
                 y -= 20
-                c.setFont("Helvetica", 12)
+            
+            row_height = 30  # Increased row height for wrapped text
             
             for i in range(len(col_widths)):
-                c.rect(x_positions[i], y - 5, col_widths[i], 20, stroke=True, fill=False)
+                c.rect(x_positions[i], y - row_height + 15, col_widths[i], row_height, stroke=True, fill=False)
             
-            campaign_name = row['campaign_name'][:25] + '...' if len(row['campaign_name']) > 25 else row['campaign_name']
-            c.drawString(x_positions[0] + 5, y, campaign_name)
+            # Draw wrapped campaign name
+            draw_wrapped_campaign_name(c, row['campaign_name'], x_positions[0], y, col_widths[0])
+            
+            # Draw other values
+            c.setFont("Helvetica", 10)
             c.drawString(x_positions[1] + 5, y, f"Rs {row['spend']:.2f}")
             c.drawString(x_positions[2] + 5, y, f"Rs {row['sales']:.2f}")
             c.drawString(x_positions[3] + 5, y, f"{row['roas']:.2f}")
             c.drawString(x_positions[4] + 5, y, f"Rs {row['cpp']:.2f}")
             c.drawString(x_positions[5] + 5, y, f"{row['ctr']:.2f}%")
             c.drawString(x_positions[6] + 5, y, f"{row['conversion_rate']:.2f}%")
-            c.drawString(x_positions[7] + 5, y, str(int(row['conversions'])))
-            y -= 20
+            y -= row_height
         
         # Summary row
         if y < margin:
@@ -343,12 +378,11 @@ def generate_pdf_report(metrics):
         c.setFillColorRGB(0.95, 0.95, 0.95)
         c.rect(margin, y - 5, sum(col_widths), 20, fill=True, stroke=False)
         c.setFillColorRGB(0, 0, 0)
-        c.setFont("Helvetica-Bold", 12)
+        c.setFont("Helvetica-Bold", 10)
         c.drawString(x_positions[0] + 5, y, "Total")
         c.drawString(x_positions[1] + 5, y, f"Rs {total_spend:.2f}")
         c.drawString(x_positions[2] + 5, y, f"Rs {total_sales:.2f}")
         c.drawString(x_positions[4] + 5, y, f"Rs {total_cpp:.2f}")
-        c.drawString(x_positions[7] + 5, y, str(int(total_conversions)))
         for i in range(len(col_widths)):
             c.rect(x_positions[i], y - 5, col_widths[i], 20, stroke=True, fill=False)
         y -= 20
