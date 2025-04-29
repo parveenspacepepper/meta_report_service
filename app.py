@@ -38,7 +38,7 @@ load_dotenv()
 ACCESS_TOKEN = os.getenv('META_API_KEY')
 ACCOUNT_ID = os.getenv('META_AD_ACCOUNT_ID')
 EMAIL_SENDER = os.getenv('EMAIL_SENDER', 'aman@spacepepper.com')
-EMAIL_RECIPIENTS = os.getenv('EMAIL_RECIPIENTS', 'shantanu@tervigon.com, admin@spacepepper.com, smriti@spacepepper.com, gaurav@spacepepper.com, aman@spacepepper.com, nikesh@tervigon.com, ashish@tervigon.com, parveen@tervigon.com, gaurav.pradhan.7me@gmail.com').split(',')
+EMAIL_RECIPIENTS = os.getenv('EMAIL_RECIPIENTS', 'parveen@tervigon.com, gaurav.pradhan.7me@gmail.com').split(',')
 EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
 ENV = os.getenv('ENV', 'development')
 REPORT_DIR = os.getenv('REPORT_DIR', os.path.join(tempfile.gettempdir(), 'reports'))
@@ -458,6 +458,15 @@ def send_email(report_file):
             else:
                 logging.error(f"Failed to send email after {retries} attempts: {str(e)}")
                 raise Exception(f"Failed to send email: {str(e)}")
+        finally:
+            # Attempt to delete the report file after sending (or even after failed attempts)
+            try:
+                if os.path.exists(report_file):
+                    os.remove(report_file)
+                    logging.info(f"Deleted report file after sending: {report_file}")
+            except Exception as delete_error:
+                logging.error(f"Failed to delete report file: {str(delete_error)}")
+
 
 @app.route('/')
 def index():
