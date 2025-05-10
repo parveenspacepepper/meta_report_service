@@ -28,17 +28,19 @@ app = Flask(__name__)
 # Set timezone to IST
 IST = pytz.timezone('Asia/Kolkata')
 
-# Define single timestamp for the entire report
-REPORT_TIMESTAMP = datetime.now(IST)
-TODAY = (REPORT_TIMESTAMP).strftime('%Y-%m-%d')
-TIMESTAMP_STR = REPORT_TIMESTAMP.strftime('%Y-%m-%d / %I:%M %p IST').lstrip('0')
+def get_current_timestamp():
+    now = datetime.now(IST)
+    today = now.strftime('%Y-%m-%d')
+    timestamp_str = now.strftime('%Y-%m-%d / %I:%M %p IST').lstrip('0')
+    return today, timestamp_str
+
 
 # Load environment variables
 load_dotenv()
 ACCESS_TOKEN = os.getenv('META_API_KEY')
 ACCOUNT_ID = os.getenv('META_AD_ACCOUNT_ID')
-EMAIL_SENDER = os.getenv('EMAIL_SENDER', 'aman@spacepepper.com')
-EMAIL_RECIPIENTS = os.getenv('EMAIL_RECIPIENTS', 'shantanu@tervigon.com, admin@spacepepper.com, smriti@spacepepper.com, gaurav@spacepepper.com, aman@spacepepper.com, nikesh@tervigon.com, ashish@tervigon.com, parveen@tervigon.com, gaurav.pradhan.7me@gmail.com').split(',')
+EMAIL_SENDER = os.getenv('EMAIL_SENDER', '')
+EMAIL_RECIPIENTS = os.getenv('EMAIL_RECIPIENTS', '').split(',')
 EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
 ENV = os.getenv('ENV', 'development')
 REPORT_DIR = os.getenv('REPORT_DIR', os.path.join(tempfile.gettempdir(), 'reports'))
@@ -62,11 +64,11 @@ for var_name, var_value in required_env_vars.items():
 # API endpoint
 BASE_URL = f'https://graph.facebook.com/v22.0/act_{ACCOUNT_ID}/insights'
 
-def fetch_meta_data():
+def fetch_meta_data(today):
     params = {
         'access_token': ACCESS_TOKEN,
         'fields': 'campaign_name,spend,impressions,clicks,actions,action_values',
-        'time_range': f'{{"since":"{TODAY}","until":"{TODAY}"}}',
+        'time_range': f'{{"since":"{today}","until":"{today}"}}',
         'level': 'campaign',
         'limit': 100
     }
@@ -192,8 +194,8 @@ def process_data(raw_data):
         'active_campaigns': active_campaigns
     }
 
-def generate_pdf_report(metrics):
-    report_name = os.path.join(REPORT_DIR, f"report_{TODAY}.pdf")
+def generate_pdf_report(metrics, today, timestamp_str):
+    report_name = os.path.join(REPORT_DIR, f"report_{today}.pdf")
     try:
         c = canvas.Canvas(report_name, pagesize=letter)
         width, height = letter
@@ -207,7 +209,7 @@ def generate_pdf_report(metrics):
 
         # Title with single timestamp
         c.setFont("Helvetica-Bold", 16)
-        c.drawString(margin, y, f"Daily Marketing Performance Report ({TIMESTAMP_STR})")
+        c.drawString(margin, y, f"Daily Marketing Performance Report ({timestamp_str})")
         y -= 20
         
         # Summary Metrics Table
@@ -230,7 +232,7 @@ def generate_pdf_report(metrics):
         
         # Summary metrics
         summary_metrics = [
-            ("Date", TODAY),
+            ("Date", today),
             ("Total Sales", f"Rs {metrics['total_sales']:.2f}"),
             ("Total Ad Spend", f"Rs {metrics['total_ad_spend']:.2f}"),
             ("Overall ROAS", f"{metrics['overall_roas']:.2f}"),
@@ -426,7 +428,7 @@ def generate_pdf_report(metrics):
         logging.error(f"Failed to write PDF report: {str(e)}")
         raise Exception(f"Failed to write PDF report: {str(e)}")
 
-def send_email(report_file):
+def send_email(report_file, today, timestamp_str):
     retries = 3
     delay = 5
     for attempt in range(retries):
@@ -434,9 +436,9 @@ def send_email(report_file):
             msg = MIMEMultipart()
             msg['From'] = EMAIL_SENDER
             msg['To'] = ", ".join(EMAIL_RECIPIENTS)
-            msg['Subject'] = f"Daily Marketing Report - {TODAY} ({TIMESTAMP_STR})"
+            msg['Subject'] = f"Daily Marketing Report - {today} ({timestamp_str})"
             
-            body = f"Attached is the daily marketing performance report for {TODAY} (Generated at {TIMESTAMP_STR})."
+            body = f"Attached is the daily marketing performance report for {today} (Generated at {timestamp_str})."
             msg.attach(MIMEText(body, 'plain'))
             
             with open(report_file, "rb") as f:
@@ -450,6 +452,12 @@ def send_email(report_file):
                 server.sendmail(EMAIL_SENDER, EMAIL_RECIPIENTS, msg.as_string())
             
             logging.info("Email sent successfully")
+
+            # ✅ Delete report after successful sending
+            if os.path.exists(report_file):
+                os.remove(report_file)
+                logging.info(f"Deleted report file after sending: {report_file}")
+
             return
         except Exception as e:
             logging.warning(f"Email attempt {attempt + 1} failed: {str(e)}")
@@ -458,6 +466,7 @@ def send_email(report_file):
             else:
                 logging.error(f"Failed to send email after {retries} attempts: {str(e)}")
                 raise Exception(f"Failed to send email: {str(e)}")
+
 
 @app.route('/')
 def index():
@@ -470,11 +479,15 @@ def index():
 @app.route('/generate-report', methods=['GET'])
 def generate_report():
     try:
-        logging.info("Report generation started...")
-        data = fetch_meta_data()
+        today, timestamp_str = get_current_timestamp()  # GET fresh timestamp
+        
+        logging.info(f"Report generation started at {timestamp_str}...")
+
+        data = fetch_meta_data(today)
         metrics = process_data(data)
-        report_file = generate_pdf_report(metrics)
-        send_email(report_file)
+        report_file = generate_pdf_report(metrics, today, timestamp_str)
+        send_email(report_file, today, timestamp_str)
+
         logging.info("Report generation and email completed successfully.")
         return jsonify({
             'status': 'success',
@@ -489,6 +502,7 @@ def generate_report():
             'message': str(e),
             'trace': traceback_str
         }), 500
+
 
 @app.route('/health', methods=['GET'])
 def health_check():
